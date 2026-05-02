@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Lock, Check, ChevronRight, Zap } from "lucide-react"
+import { Lock, Check, ChevronRight, Zap, MessageCircle, X } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 type Screen = "entry" | "verification" | "questions" | "analyzing" | "result"
 
@@ -18,105 +19,128 @@ const questions = [
     question: "What should we call you?",
     type: "input" as const,
     placeholder: "Enter your name",
+    field: "name",
   },
   {
     id: 2,
     section: "IDENTITY",
-    question: "Your age?",
-    type: "options" as const,
-    options: ["18–21", "22–25", "26–30", "30+"],
+    question: "Your phone number?",
+    type: "phone" as const,
+    placeholder: "Enter your phone number",
+    field: "phone",
   },
   {
     id: 3,
     section: "IDENTITY",
-    question: "What do you currently do?",
+    question: "Your age?",
     type: "options" as const,
-    options: ["Student", "Job", "Business", "Other"],
+    options: ["18–21", "22–25", "26–30", "30+"],
+    field: "age",
   },
   {
     id: 4,
-    section: "TRADING REALITY",
-    question: "How long have you been trading?",
+    section: "IDENTITY",
+    question: "What do you currently do?",
     type: "options" as const,
-    options: ["Just started", "0–1 year", "1–2 years", "2+ years"],
+    options: ["Student", "Job", "Business", "Other"],
+    field: "occupation",
   },
   {
     id: 5,
     section: "TRADING REALITY",
-    question: "What is your current capital?",
+    question: "How long have you been trading?",
     type: "options" as const,
-    options: ["Below ₹10,000", "₹10,000 – ₹50,000", "₹50,000 – ₹2L", "₹2L+"],
+    options: ["Just started", "0–1 year", "1–2 years", "2+ years"],
+    field: "trading_experience",
   },
   {
     id: 6,
-    section: "PAIN",
-    question: "Be honest… are you currently in profit or loss?",
+    section: "TRADING REALITY",
+    question: "What is your current capital?",
     type: "options" as const,
-    options: ["Profit", "Break-even", "Loss"],
+    options: ["Below ₹10,000", "₹10,000 – ₹50,000", "₹50,000 – ₹2L", "₹2L+"],
+    field: "current_capital",
   },
   {
     id: 7,
     section: "PAIN",
-    question: "How much have you roughly lost so far?",
+    question: "Be honest… are you currently in profit or loss?",
     type: "options" as const,
-    options: ["₹0–₹5,000", "₹5,000–₹20,000", "₹20,000–₹50,000", "₹50,000+"],
+    options: ["Profit", "Break-even", "Loss"],
+    field: "profit_loss_status",
   },
   {
     id: 8,
     section: "PAIN",
-    question: "What hurts you the most right now?",
+    question: "How much have you roughly lost so far?",
     type: "options" as const,
-    options: ["Taking wrong entries", "Hitting SL again and again", "Overtrading", "Fear / hesitation", "No proper strategy"],
+    options: ["₹0–₹5,000", "₹5,000–₹20,000", "₹20,000–₹50,000", "₹50,000+"],
+    field: "total_loss",
   },
   {
     id: 9,
-    section: "BEHAVIOR",
-    question: "How do you currently trade?",
+    section: "PAIN",
+    question: "What hurts you the most right now?",
     type: "options" as const,
-    options: ["Signals", "Self analysis", "Random entries"],
+    options: ["Taking wrong entries", "Hitting SL again and again", "Overtrading", "Fear / hesitation", "No proper strategy"],
+    field: "biggest_pain",
   },
   {
     id: 10,
     section: "BEHAVIOR",
-    question: "Do you follow proper risk management?",
+    question: "How do you currently trade?",
     type: "options" as const,
-    options: ["Yes", "Sometimes", "No"],
+    options: ["Signals", "Self analysis", "Random entries"],
+    field: "trading_method",
   },
   {
     id: 11,
-    section: "COMMITMENT",
-    question: "Is this serious capital for you?",
+    section: "BEHAVIOR",
+    question: "Do you follow proper risk management?",
     type: "options" as const,
-    options: ["Yes, very important", "Somewhat", "Just testing"],
+    options: ["Yes", "Sometimes", "No"],
+    field: "risk_management",
   },
   {
     id: 12,
     section: "COMMITMENT",
-    question: "How many trades do you take daily?",
+    question: "Is this serious capital for you?",
     type: "options" as const,
-    options: ["1–2", "3–5", "5+"],
+    options: ["Yes, very important", "Somewhat", "Just testing"],
+    field: "capital_importance",
   },
   {
     id: 13,
-    section: "DESIRE",
-    question: "What is your goal from trading?",
+    section: "COMMITMENT",
+    question: "How many trades do you take daily?",
     type: "options" as const,
-    options: ["Side income", "Replace income", "Pass prop firm", "Grow account"],
+    options: ["1–2", "3–5", "5+"],
+    field: "daily_trades",
   },
   {
     id: 14,
     section: "DESIRE",
-    question: "Do you want structured signals with clear Entry, SL & TP?",
+    question: "What is your goal from trading?",
     type: "options" as const,
-    options: ["Yes", "No"],
+    options: ["Side income", "Replace income", "Pass prop firm", "Grow account"],
+    field: "trading_goal",
   },
   {
     id: 15,
+    section: "DESIRE",
+    question: "Do you want structured signals with clear Entry, SL & TP?",
+    type: "options" as const,
+    options: ["Yes", "No"],
+    field: "wants_structured_signals",
+  },
+  {
+    id: 16,
     section: "CLOSE",
     question: "Do you want live support while trading?",
     type: "options" as const,
     options: ["Yes", "No"],
     highlight: "Yes",
+    field: "wants_live_support",
   },
 ]
 
@@ -136,8 +160,28 @@ export default function AnalysisPage() {
   const [inputValue, setInputValue] = useState("")
   const [analyzingIndex, setAnalyzingIndex] = useState(0)
   const [analyzingProgress, setAnalyzingProgress] = useState(0)
+  const [showExitPopup, setShowExitPopup] = useState(false)
 
   const userName = answers.find((a) => a.questionId === 1)?.answer || "Trader"
+
+  // Save quiz responses to Supabase
+  const saveQuizResponses = useCallback(async () => {
+    const supabase = createClient()
+    
+    const responseData: Record<string, string> = {}
+    answers.forEach((answer) => {
+      const question = questions.find((q) => q.id === answer.questionId)
+      if (question?.field) {
+        responseData[question.field] = answer.answer
+      }
+    })
+
+    try {
+      await supabase.from("quiz_responses").insert([responseData])
+    } catch (error) {
+      console.error("Error saving quiz responses:", error)
+    }
+  }, [answers])
 
   // Entry screen loading
   useEffect(() => {
@@ -166,9 +210,12 @@ export default function AnalysisPage() {
     }
   }, [screen])
 
-  // Analyzing screen animation
+  // Analyzing screen animation and save to Supabase
   useEffect(() => {
     if (screen === "analyzing") {
+      // Save responses when analyzing starts
+      saveQuizResponses()
+
       const textInterval = setInterval(() => {
         setAnalyzingIndex((prev) => (prev + 1) % analyzingTexts.length)
       }, 2500)
@@ -188,6 +235,30 @@ export default function AnalysisPage() {
       return () => {
         clearInterval(textInterval)
         clearInterval(progressInterval)
+      }
+    }
+  }, [screen, saveQuizResponses])
+
+  // Handle back/refresh/leave detection for exit popup
+  useEffect(() => {
+    if (screen === "result") {
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault()
+        setShowExitPopup(true)
+      }
+
+      const handlePopState = () => {
+        setShowExitPopup(true)
+        window.history.pushState(null, "", window.location.href)
+      }
+
+      window.history.pushState(null, "", window.location.href)
+      window.addEventListener("beforeunload", handleBeforeUnload)
+      window.addEventListener("popstate", handlePopState)
+
+      return () => {
+        window.removeEventListener("beforeunload", handleBeforeUnload)
+        window.removeEventListener("popstate", handlePopState)
       }
     }
   }, [screen])
@@ -214,6 +285,10 @@ export default function AnalysisPage() {
     }
   }, [inputValue, handleAnswer])
 
+  const handleBackToHome = () => {
+    setShowExitPopup(true)
+  }
+
   const progress = ((currentQuestion + 1) / questions.length) * 100
 
   return (
@@ -226,11 +301,63 @@ export default function AnalysisPage() {
 
       {/* Logo */}
       <div className="fixed top-6 left-6 z-50">
-        <a href="/" className="flex items-center gap-1">
+        <a href="/" onClick={(e) => { e.preventDefault(); handleBackToHome(); }} className="flex items-center gap-1">
           <span className="font-oswald text-xl tracking-wider text-[#E50914]">TP</span>
           <span className="font-oswald text-xl tracking-wider text-white">HUNTERS</span>
         </a>
       </div>
+
+      {/* Exit Popup */}
+      <AnimatePresence>
+        {showExitPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#1a1a1a] border-2 border-[#E50914] p-8 max-w-md w-full text-center relative"
+            >
+              <button
+                onClick={() => setShowExitPopup(false)}
+                className="absolute top-4 right-4 text-white/50 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <h3 className="font-oswald text-2xl md:text-3xl tracking-wider mb-4 text-white">
+                Wait — don&apos;t miss this.
+              </h3>
+              
+              <p className="text-white/70 font-rajdhani text-lg mb-6 leading-relaxed">
+                ₹500 is just 50 pips on 0.01 lot.<br />
+                <span className="text-[#E50914] font-semibold">You can recover it in your first trade.</span>
+              </p>
+              
+              <div className="flex flex-col gap-3">
+                <a
+                  href="https://wa.link/r1yn9s"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full py-4 bg-[#E50914] hover:bg-[#ff2020] text-white font-rajdhani tracking-wider uppercase text-center transition-all"
+                >
+                  Start Now
+                </a>
+                <button
+                  onClick={() => { setShowExitPopup(false); window.location.href = "/"; }}
+                  className="block w-full py-3 border border-white/20 hover:border-white/40 text-white/50 hover:text-white font-rajdhani tracking-wider uppercase text-center transition-all"
+                >
+                  Exit Anyway
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {/* ENTRY SCREEN */}
@@ -372,7 +499,7 @@ export default function AnalysisPage() {
                   </h2>
 
                   {/* Options or Input */}
-                  {questions[currentQuestion].type === "input" ? (
+                  {questions[currentQuestion].type === "input" || questions[currentQuestion].type === "phone" ? (
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -380,7 +507,7 @@ export default function AnalysisPage() {
                       className="space-y-4"
                     >
                       <input
-                        type="text"
+                        type={questions[currentQuestion].type === "phone" ? "tel" : "text"}
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleInputSubmit()}
@@ -531,40 +658,77 @@ export default function AnalysisPage() {
                 </p>
               </motion.div>
 
-              {/* Plans */}
+              {/* Pricing Cards */}
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
-                className="grid md:grid-cols-3 gap-6"
+                className="flex flex-col md:flex-row justify-center items-center gap-6 max-w-5xl mx-auto"
               >
-                {/* STARTER PLAN - Highlighted */}
+                {/* PRO PLAN - Partially Locked */}
+                <div className="relative w-full md:w-80 order-2 md:order-1">
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+                    <div className="text-center">
+                      <Lock className="w-10 h-10 text-white/40 mx-auto mb-2" />
+                      <span className="text-white/60 text-sm font-rajdhani tracking-wider uppercase">Unlock after joining Starter</span>
+                    </div>
+                  </div>
+                  <div className="bg-[#141414] border-2 border-white/20 p-6 md:p-8">
+                    <div className="text-center mb-6">
+                      <h3 className="font-oswald text-lg tracking-wider text-white/50 mb-2">PRO PLAN</h3>
+                      <p className="text-4xl md:text-5xl font-oswald text-white/60 blur-[1px]">
+                        <span className="text-2xl">₹</span>1,499
+                      </p>
+                      <p className="text-white/40 text-sm font-rajdhani">/month</p>
+                    </div>
+                    <div className="border-t border-white/10 pt-6">
+                      <ul className="space-y-3 text-sm">
+                        {[
+                          "5–6 signals per day",
+                          "XAUUSD + NASDAQ signals",
+                          "Risk management coaching",
+                          "Live chart analysis (weekly)",
+                          "Entry, SL, TP + reasoning",
+                        ].map((item, i) => (
+                          <li key={i} className="flex items-start gap-3 text-white/40 font-rajdhani">
+                            <Check className="w-4 h-4 text-white/30 mt-0.5 shrink-0" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* STARTER PLAN - Highlighted (Center/Focus) */}
                 <motion.div
                   initial={{ scale: 0.95 }}
                   animate={{ scale: 1 }}
                   whileHover={{ scale: 1.02 }}
-                  className="relative bg-gradient-to-b from-[#1a1a1a] to-[#0d0d0d] border-2 border-[#E50914] p-6 md:p-8"
+                  className="relative bg-gradient-to-b from-[#1a1a1a] to-[#0d0d0d] border-2 border-[#E50914] p-6 md:p-8 w-full md:w-96 order-1 md:order-2 z-10"
                 >
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#E50914] text-xs font-rajdhani tracking-wider uppercase">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#E50914] text-xs font-rajdhani tracking-wider uppercase whitespace-nowrap">
                     Recommended For You
                   </div>
 
                   <div className="text-center mb-6 pt-4">
+                    <h3 className="font-oswald text-xl tracking-wider text-[#E50914] mb-2">STARTER PLAN</h3>
                     <p className="text-5xl md:text-6xl font-oswald text-white">
                       <span className="text-3xl">₹</span>500
                     </p>
-                    <p className="text-white/50 text-sm font-rajdhani">/month</p>
-                    <h3 className="font-oswald text-xl tracking-wider text-[#E50914] mt-2">STARTER HUNTER</h3>
+                    <p className="text-white/50 text-sm font-rajdhani">/ 2 months</p>
                   </div>
 
                   <div className="border-t border-white/10 pt-6 mb-6">
                     <ul className="space-y-3 text-sm">
                       {[
-                        "1–2 signals per day (XAUUSD)",
-                        "0.01 lot sizing guidance",
-                        "50 pip TP — first trade covered",
-                        "WhatsApp signal delivery",
+                        "3–4 signals per day",
+                        "50–400 pips potential daily",
+                        "0.01 lot friendly",
+                        "First trade covered",
                         "Entry, SL, TP levels",
+                        "Telegram signal delivery",
+                        "Live trade management (Trailing TP & SL)",
                       ].map((item, i) => (
                         <li key={i} className="flex items-start gap-3 text-white/70 font-rajdhani">
                           <Check className="w-4 h-4 text-[#E50914] mt-0.5 shrink-0" />
@@ -575,69 +739,34 @@ export default function AnalysisPage() {
                   </div>
 
                   <a
-                    href="https://wa.me/your-number?text=I%20want%20to%20join%20Starter%20Hunter%20plan"
+                    href="https://wa.link/r1yn9s"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full py-4 bg-[#E50914] hover:bg-[#ff2020] text-white font-rajdhani tracking-wider uppercase text-center transition-all"
+                    className="block w-full py-4 bg-[#E50914] hover:bg-[#ff2020] text-white font-rajdhani tracking-wider uppercase text-center transition-all text-lg font-semibold"
                   >
                     Start Now
                   </a>
 
-                  <p className="text-center text-xs text-white/40 mt-4 font-rajdhani">
-                    Your first trade alone is designed to cover this ₹500.
+                  <p className="text-center text-xs text-white/50 mt-4 font-rajdhani leading-relaxed">
+                    ₹500 is just ~50 pips on 0.01 lot — you can recover it in your first trade.
                   </p>
                 </motion.div>
 
-                {/* PRO PLAN - Blurred & Locked */}
-                <div className="relative">
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                {/* ELITE PLAN - More Blurred & Locked */}
+                <div className="relative w-full md:w-80 order-3">
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-[3px]">
                     <div className="text-center">
                       <Lock className="w-10 h-10 text-white/30 mx-auto mb-2" />
-                      <span className="text-white/50 text-sm font-rajdhani tracking-wider uppercase">Locked</span>
+                      <span className="text-white/50 text-sm font-rajdhani tracking-wider uppercase">Unlock after joining Starter</span>
                     </div>
                   </div>
-                  <div className="bg-[#141414] border border-white/10 p-6 md:p-8 opacity-50">
+                  <div className="bg-[#141414] border-2 border-white/15 p-6 md:p-8">
                     <div className="text-center mb-6">
-                      <p className="text-4xl md:text-5xl font-oswald text-white/50">
-                        <span className="text-2xl">₹</span>1,500
+                      <h3 className="font-oswald text-lg tracking-wider text-white/40 mb-2">ELITE PLAN</h3>
+                      <p className="text-4xl md:text-5xl font-oswald text-white/50 blur-[2px]">
+                        <span className="text-2xl">₹</span>2,999
                       </p>
                       <p className="text-white/30 text-sm font-rajdhani">/month</p>
-                      <h3 className="font-oswald text-lg tracking-wider text-white/40 mt-2">PRO HUNTER</h3>
-                    </div>
-                    <div className="border-t border-white/5 pt-6">
-                      <ul className="space-y-3 text-sm">
-                        {[
-                          "XAUUSD + NASDAQ signals",
-                          "Risk management coaching",
-                          "Live chart analysis (weekly)",
-                          "WhatsApp + Telegram group",
-                          "Entry, SL, TP + reasoning",
-                        ].map((item, i) => (
-                          <li key={i} className="flex items-start gap-3 text-white/30 font-rajdhani">
-                            <Check className="w-4 h-4 text-white/20 mt-0.5 shrink-0" />
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ELITE PLAN - Blurred & Locked */}
-                <div className="relative">
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="text-center">
-                      <Lock className="w-10 h-10 text-white/30 mx-auto mb-2" />
-                      <span className="text-white/50 text-sm font-rajdhani tracking-wider uppercase">Locked</span>
-                    </div>
-                  </div>
-                  <div className="bg-[#141414] border border-white/10 p-6 md:p-8 opacity-50">
-                    <div className="text-center mb-6">
-                      <p className="text-4xl md:text-5xl font-oswald text-white/50">
-                        <span className="text-2xl">₹</span>4,000
-                      </p>
-                      <p className="text-white/30 text-sm font-rajdhani">/month</p>
-                      <h3 className="font-oswald text-lg tracking-wider text-white/40 mt-2">ELITE HUNTER</h3>
                     </div>
                     <div className="border-t border-white/5 pt-6">
                       <ul className="space-y-3 text-sm">
@@ -659,22 +788,40 @@ export default function AnalysisPage() {
                 </div>
               </motion.div>
 
+              {/* Support Button */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="text-center mt-10"
+              >
+                <a
+                  href="https://wa.link/ot60cd"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-6 py-3 border border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10 font-rajdhani tracking-wider transition-all"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  Need Help? Chat on WhatsApp
+                </a>
+              </motion.div>
+
               {/* Bottom CTA */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.6 }}
-                className="text-center mt-12"
+                className="text-center mt-8"
               >
                 <p className="text-white/50 text-sm font-rajdhani mb-4">
                   All plans include real-time signals on XAUUSD & NASDAQ. First trade covered — guaranteed.
                 </p>
-                <a
-                  href="/"
+                <button
+                  onClick={handleBackToHome}
                   className="inline-block text-[#E50914] text-sm font-rajdhani tracking-wider hover:underline"
                 >
                   ← Back to Home
-                </a>
+                </button>
               </motion.div>
             </div>
           </motion.div>
